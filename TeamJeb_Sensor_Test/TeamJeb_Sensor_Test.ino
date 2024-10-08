@@ -5,8 +5,8 @@
 #include "Adafruit_BMP3XX.h"
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
+#include <SoftwareSerial.h>
 
-//iyfu
 
 #define BMP_SCK 13
 #define BMP_MISO 12
@@ -15,8 +15,9 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-Adafruit_BMP3XX bmp;
-Adafruit_BNO055 bno = Adafruit_BNO055(55);
+Adafruit_BMP3XX bmp; //Pressure Sensor
+Adafruit_BNO055 bno = Adafruit_BNO055(55); // Absolute Orientation Sensor
+SoftwareSerial OpenLog(0, 1); //SD Logger
 
 
 // REQUIRED TELEMETRY
@@ -33,12 +34,14 @@ int lowAlt = 0;
 float pressure = 0;
 bool descent = false;
 
-
+void logData();
 
 void setup() {
   // put your setup code here, to run once:
 
   Serial.begin(9600);
+  OpenLog.begin(9600);
+  new 
 
   if (!bmp.begin_I2C()) {
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
@@ -59,6 +62,15 @@ void setup() {
   bmp.setOutputDataRate(BMP3_ODR_50_HZ);
   
   bno.setExtCrystalUse(true);
+
+
+  //Code for CSV File Writing
+  OpenLog.print("Temp");
+  OpenLog.print(",");
+  OpenLog.print("Pressure");
+  OpenLog.print(",");
+  OpenLog.println("Altitude");
+
 
 }
 
@@ -115,12 +127,21 @@ void loop() {
   Serial.print(" Max Altitude:");
   Serial.println(maxAlt);
 
+  logData();
 
 
 
-  //Where our data will be written to SD Logger, but for now we will print to serial monitor
 
+}
 
+void logData() // Logs data to sd card
+{
+  OpenLog.print(temp);
+  OpenLog.print(",");
+  OpenLog.print(pressure);
+  OpenLog.print(",");
+  OpenLog.println(altitude);
+  return;
 }
  
 
