@@ -6,6 +6,9 @@
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
 #include <SoftwareSerial.h>
+#include "SparkFun_Qwiic_OpenLog_Arduino_Library.h"
+#include <SparkFun_u-blox_GNSS_v3.h>
+SFE_UBLOX_GNSS myGNSS;
 
 
 #define BMP_SCK 13
@@ -26,9 +29,10 @@ float mission_Time = 0, UTC_Time = 0, packet_Count = 0, altitude = 0, temp = 0;
 float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
-float gps_Lat = 0, gps_Lon = 0, gps_Alt = 0; // Latitude and Longitude in Degrees and Alt in Meters above Sea Level
+float gps_Lat = 0, gps_Long = 0, gps_Alt = 0; // Latitude and Longitude in Degrees and Alt in Meters above Sea Level
 
 //ADDITIONAL TELEMETRY
+int orient_X = 0, orient_Y = 0, orient_Z = 0;
 float maxAlt = 0;
 int lowAlt = 0;
 float pressure = 0;
@@ -41,7 +45,6 @@ void setup() {
 
   Serial.begin(9600);
   OpenLog.begin(9600);
-  new 
 
   if (!bmp.begin_I2C()) {
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
@@ -52,10 +55,12 @@ void setup() {
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
+  while (myGNSS.begin() == false) //Connect to the u-blox module using Wire port
+  {
+    Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
+    delay (1000);
+  }
     
-
-  
-
   bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
   bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
   bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
@@ -65,41 +70,78 @@ void setup() {
 
 
   //Code for CSV File Writing
-  OpenLog.print("Temp");
+  OpenLog.print("TEAM_ID");
   OpenLog.print(",");
-  OpenLog.print("Pressure");
+  OpenLog.print("MISSION_TIME");
   OpenLog.print(",");
-  OpenLog.println("Altitude");
-
-
+  OpenLog.print("UTC_TIME");
+  OpenLog.print(",");
+  OpenLog.print("PACKET_COUNT");
+  OpenLog.print(",");
+  OpenLog.print("SW_STATE");
+  OpenLog.print(",");
+  OpenLog.print("ALTITUDE");
+  OpenLog.print(",");
+  OpenLog.print("TEMP");
+  OpenLog.print(",");
+  OpenLog.print("ACC_X");
+  OpenLog.print(",");
+  OpenLog.print("ACC_Y");
+  OpenLog.print(",");
+  OpenLog.print("ACC_Z");
+  OpenLog.print(",");
+  OpenLog.print("GYRO_X");
+  OpenLog.print(",");
+  OpenLog.print("GYRO_Y");
+  OpenLog.print(",");
+  OpenLog.print("GRYO_Z");
+  OpenLog.print(",");
+  OpenLog.print("GPS_LAT");
+  OpenLog.print(",");
+  OpenLog.print("GPS_LONG");
+  OpenLog.print(",");
+  OpenLog.println("GPS_ALT");
+  
 }
 
 void loop() {
+  imu::Vector<3> orientation;
+  imu::Vector<3> acceleration;
+  imu::Vector<3> gyro;
 
   temp = bmp.temperature;
   pressure = bmp.pressure/100;
   altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-  
+  gps_Lat = myGNSS.getLatitude();
+  gps_Long = myGNSS.getLongitude();
+  gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
+  sensors_event_t event; 
+  bno.getEvent(&event);
+  orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+  acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
+  gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+  acc_X = acceleration.x();
+  acc_Y = acceleration.y();
+  acc_Z = acceleration.z();
+  gyro_X = gyro.x();
+  gyro_Y = gyro.y();
+  gyro_Z = gyro.z();
+  orient_X = orientation.x();
+  orient_Y = orientation.y();
+  orient_Z = orientation.z();
 
+  digitalWrite(2,HIGH);
+  digitalWrite(3,HIGH);
 
   //Getting input from sensors will be above this ^^^
   
-  delay(1000);
-  if (altitude>maxAlt && altitude!=1654.
-  )
-   {
-    maxAlt=altitude;
-   }
-
+  delay(500);
   
-
-
   //Software State Decider
   //if (altitude > 5000 && altitude < 16500 && SW_State<1)
   //{
     //SW_State = 1;
   //}
-
 
   //Testing Purposes
   //digitalWrite(4, HIGH);
@@ -107,16 +149,6 @@ void loop() {
   //digitalWrite(4, LOW);
   //delay(1500);
 
-
-
-  sensors_event_t event; 
-  bno.getEvent(&event);
-  Serial.print("X: ");
-  Serial.print(event.orientation.x, 4);
-  Serial.print("\tY: ");
-  Serial.print(event.orientation.y, 4);
-  Serial.print("\tZ: ");
-  Serial.print(event.orientation.z, 4);
   Serial.println("");
   Serial.print("Temperature:");
   Serial.print(temp);
@@ -126,21 +158,68 @@ void loop() {
   Serial.print(altitude);
   Serial.print(" Max Altitude:");
   Serial.println(maxAlt);
+  Serial.print(orient_X);
+  Serial.print(",");
+  Serial.print(orient_Y);
+  Serial.print(",");
+  Serial.println(orient_Z);
+  Serial.print(acc_X);
+  Serial.print(",");
+  Serial.print(acc_Y);
+  Serial.print(",");
+  Serial.println(acc_Z);
+  Serial.print(gyro_X);
+  Serial.print(",");
+  Serial.print(gyro_Y);
+  Serial.print(",");
+  Serial.println(gyro_Z);
+  digitalWrite(11,HIGH);
+
+  Serial.print(F("Lat: "));
+  Serial.print(gps_Lat);
+  Serial.print(F(" Long: "));
+  Serial.print(gps_Long);
+  Serial.print(F(" Alt: "));
+  Serial.print(gps_Alt);
+  Serial.println(F(" (m)"));
 
   logData();
-
-
-
 
 }
 
 void logData() // Logs data to sd card
 {
+  OpenLog.print(team_ID);
+  OpenLog.print(",");
+  OpenLog.print(mission_Time);
+  OpenLog.print(",");
+  OpenLog.print(UTC_Time);
+  OpenLog.print(",");
+  OpenLog.print(packet_Count);
+  OpenLog.print(",");
+  OpenLog.print(SW_State);
+  OpenLog.print(",");
+  OpenLog.print(altitude);
+  OpenLog.print(",");
   OpenLog.print(temp);
   OpenLog.print(",");
-  OpenLog.print(pressure);
+  OpenLog.print(acc_X);
   OpenLog.print(",");
-  OpenLog.println(altitude);
+  OpenLog.print(acc_Y);
+  OpenLog.print(",");
+  OpenLog.print(acc_Z);
+  OpenLog.print(",");
+  OpenLog.print(gyro_X);
+  OpenLog.print(",");
+  OpenLog.print(gyro_Y);
+  OpenLog.print(",");
+  OpenLog.print(gyro_Z);
+  OpenLog.print(",");
+  OpenLog.print(gps_Lat);
+  OpenLog.print(",");
+  OpenLog.print(gps_Long);
+  OpenLog.print(",");
+  OpenLog.println(gps_Alt);  
   return;
 }
  
