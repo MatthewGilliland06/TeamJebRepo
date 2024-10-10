@@ -25,7 +25,8 @@ SoftwareSerial OpenLog(0, 1); //SD Logger
 
 // REQUIRED TELEMETRY
 String team_ID = "Team Jeb";
-float mission_Time = 0, UTC_Time = 0, packet_Count = 0, altitude = 0, temp = 0;
+unsigned int mission_Time = 0;
+float UTC_Time = 0, packet_Count = 0, altitude = 0, temp = 0;
 float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
@@ -33,12 +34,16 @@ float gps_Lat = 0, gps_Long = 0, gps_Alt = 0; // Latitude and Longitude in Degre
 
 //ADDITIONAL TELEMETRY
 int orient_X = 0, orient_Y = 0, orient_Z = 0;
+int angle_X = 0, angle_Y = 0, angle_Z = 0;
 float maxAlt = 0;
 int lowAlt = 0;
 float pressure = 0;
 bool descent = false;
+int Pi = 3.1415926535897932384626433832795;
 
 void logData();
+void recieveData();
+void stabilize();
 
 void setup() {
   // put your setup code here, to run once:
@@ -105,33 +110,8 @@ void setup() {
 }
 
 void loop() {
-  imu::Vector<3> orientation;
-  imu::Vector<3> acceleration;
-  imu::Vector<3> gyro;
+  recieveData();
 
-  temp = bmp.temperature;
-  pressure = bmp.pressure/100;
-  altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-  gps_Lat = myGNSS.getLatitude();
-  gps_Long = myGNSS.getLongitude();
-  gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
-  sensors_event_t event; 
-  bno.getEvent(&event);
-  orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
-  acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
-  gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-  acc_X = acceleration.x();
-  acc_Y = acceleration.y();
-  acc_Z = acceleration.z();
-  gyro_X = gyro.x();
-  gyro_Y = gyro.y();
-  gyro_Z = gyro.z();
-  orient_X = orientation.x();
-  orient_Y = orientation.y();
-  orient_Z = orientation.z();
-
-  digitalWrite(2,HIGH);
-  digitalWrite(3,HIGH);
 
   //Getting input from sensors will be above this ^^^
   
@@ -144,10 +124,6 @@ void loop() {
   //}
 
   //Testing Purposes
-  //digitalWrite(4, HIGH);
-  //delay(1500);
-  //digitalWrite(4, LOW);
-  //delay(1500);
 
   Serial.println("");
   Serial.print("Temperature:");
@@ -173,6 +149,7 @@ void loop() {
   Serial.print(gyro_Y);
   Serial.print(",");
   Serial.println(gyro_Z);
+  Serial.println(mission_Time);
   digitalWrite(11,HIGH);
 
   Serial.print(F("Lat: "));
@@ -183,7 +160,9 @@ void loop() {
   Serial.print(gps_Alt);
   Serial.println(F(" (m)"));
 
-  logData();
+  logData(); // Logs data
+
+  stabilize(); // Testing stabilization
 
 }
 
@@ -222,25 +201,66 @@ void logData() // Logs data to sd card
   OpenLog.println(gps_Alt);  
   return;
 }
+
+void recieveData()
+{
+  mission_Time = millis();
+  imu::Vector<3> orientation;
+  imu::Vector<3> acceleration;
+  imu::Vector<3> gyro;
+
+  temp = bmp.temperature;
+  pressure = bmp.pressure/100;
+  altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+  gps_Lat = myGNSS.getLatitude();
+  gps_Long = myGNSS.getLongitude();
+  gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
+  sensors_event_t event; 
+  bno.getEvent(&event);
+  orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+  acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
+  gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+  acc_X = acceleration.x();
+  acc_Y = acceleration.y();
+  acc_Z = acceleration.z();
+  gyro_X = (gyro.x())*(180/Pi);
+  gyro_Y = (gyro.y())*(180/Pi);
+  gyro_Z = (gyro.z())*(180/Pi);
+  orient_X = orientation.x();
+  orient_Y = orientation.y();
+  orient_Z = orientation.z();
+}
+
+
  
 
 //   Stabilization Algorithm in progress   //
-//void stabilize() {
-  //if (gyro_X > 10 || gyro_X < -10)
-  //{
-    //if (gyro_X > 5)
-    //{
+void stabilize() {
+  if (gyro_X > 15 || gyro_X < -15)
+  {
+    if (gyro_X > 10)
+    {
+      digitalWrite(2,HIGH);
       //turn on counter clockwise solenoid
-      //delay
+      //wait for a set amount of time (Don't use delay)
       //turn off counter clockwise solenoid
-    //}
-    //if (gyro_X < -5)
-    //{
+      digitalWrite(3,LOW);
+      
+    }
+    if (gyro_X < -10)
+    {
+      digitalWrite(3,HIGH);
       //turn on clockwise solenoid
-      //delay
+      //wait for a set amount of time (Don't use delay)
       //turn off clockwise solenoid
-    //}
-    
-  //}
-//}
+      digitalWrite(2,LOW);
+    }
+  
+  }
+  else
+  {
+    digitalWrite(2,LOW);
+    digitalWrite(3,LOW);
+  }
+}
 
