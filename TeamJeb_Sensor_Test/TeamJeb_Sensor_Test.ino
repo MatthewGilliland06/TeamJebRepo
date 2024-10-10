@@ -40,6 +40,10 @@ int lowAlt = 0;
 float pressure = 0;
 bool descent = false;
 int Pi = 3.1415926535897932384626433832795;
+int led_Time = 0;
+int solenoid_Time = 0;
+int timePeriod = 500; // Milliseconds
+bool ledOn = false;
 
 void logData();
 void recieveData();
@@ -110,13 +114,13 @@ void setup() {
 }
 
 void loop() {
+  mission_Time = millis();
   recieveData();
-
+  digitalWrite(4,LOW);
+  
 
   //Getting input from sensors will be above this ^^^
-  
-  delay(500);
-  
+    
   //Software State Decider
   //if (altitude > 5000 && altitude < 16500 && SW_State<1)
   //{
@@ -124,7 +128,7 @@ void loop() {
   //}
 
   //Testing Purposes
-
+  /*
   Serial.println("");
   Serial.print("Temperature:");
   Serial.print(temp);
@@ -159,10 +163,32 @@ void loop() {
   Serial.print(F(" Alt: "));
   Serial.print(gps_Alt);
   Serial.println(F(" (m)"));
+  */
 
+  if (mission_Time - solenoid_Time >= timePeriod)
+  {
   logData(); // Logs data
-
   stabilize(); // Testing stabilization
+  solenoid_Time = mission_Time;
+  }
+
+  if (mission_Time - led_Time >= timePeriod)
+  {
+    if (ledOn==false)
+    {
+      digitalWrite(4,HIGH);
+      led_Time = mission_Time;
+      ledOn = true;
+    }
+    else if (ledOn == true)
+    {
+      digitalWrite(4,LOW);
+      led_Time = mission_Time;
+      ledOn = false;
+    }
+  }
+  
+  
 
 }
 
@@ -204,7 +230,7 @@ void logData() // Logs data to sd card
 
 void recieveData()
 {
-  mission_Time = millis();
+  
   imu::Vector<3> orientation;
   imu::Vector<3> acceleration;
   imu::Vector<3> gyro;
