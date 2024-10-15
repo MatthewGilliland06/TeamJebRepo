@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <string>
 #include <SPI.h>
+#include <UnixTime.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BMP3XX.h"
 #include <Adafruit_BNO055.h>
@@ -10,11 +11,7 @@
 #include <SparkFun_u-blox_GNSS_v3.h>
 SFE_UBLOX_GNSS myGNSS;
 
-
-#define BMP_SCK 13
-#define BMP_MISO 12
-#define BMP_MOSI 11
-#define BMP_CS 10
+UnixTime stamp(0); // 0 for UTC Time
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -26,7 +23,8 @@ SoftwareSerial OpenLog(0, 1); //SD Logger
 // REQUIRED TELEMETRY
 String team_ID = "Team Jeb";
 unsigned int mission_Time = 0;
-float UTC_Time = 0, packet_Count = 0, altitude = 0, temp = 0;
+uint32_t UTC_Time = 0;
+float packet_Count = 0, altitude = 0, temp = 0;
 float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
@@ -77,6 +75,8 @@ void setup() {
   
   bno.setExtCrystalUse(true);
 
+  
+
 
   //Code for CSV File Writing
   OpenLog.print("TEAM_ID");
@@ -109,8 +109,13 @@ void setup() {
   OpenLog.print(",");
   OpenLog.print("GPS_LONG");
   OpenLog.print(",");
-  OpenLog.println("GPS_ALT");
-  
+  OpenLog.print("GPS_ALT");
+  OpenLog.print(",");
+  OpenLog.println("PRESSURE");  
+
+  stamp.setDateTime(2024, 10, 14, 20, 32, 30);   
+  UTC_Time = stamp.getUnix();
+
 }
 
 void loop() {
@@ -164,6 +169,7 @@ void loop() {
   Serial.print(gps_Alt);
   Serial.println(F(" (m)"));
   */
+  Serial.println(UTC_Time);
 
   if (mission_Time - solenoid_Time >= timePeriod)
   {
@@ -224,17 +230,21 @@ void logData() // Logs data to sd card
   OpenLog.print(",");
   OpenLog.print(gps_Long);
   OpenLog.print(",");
-  OpenLog.println(gps_Alt);  
+  OpenLog.print(gps_Alt);  
+  OpenLog.print(",");
+  OpenLog.println(pressure);  
   return;
 }
 
 void recieveData()
 {
-  
   imu::Vector<3> orientation;
   imu::Vector<3> acceleration;
   imu::Vector<3> gyro;
 
+
+  
+  UTC_Time++;
   temp = bmp.temperature;
   pressure = bmp.pressure/100;
   altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
@@ -255,6 +265,7 @@ void recieveData()
   orient_X = orientation.x();
   orient_Y = orientation.y();
   orient_Z = orientation.z();
+  packet_Count++;
 }
 
 
