@@ -10,6 +10,7 @@
 #include "SparkFun_Qwiic_OpenLog_Arduino_Library.h"
 #include <SparkFun_u-blox_GNSS_v3.h>
 SFE_UBLOX_GNSS myGNSS;
+sensors_event_t event; 
 
 UnixTime stamp(0); // 0 for UTC Time
 
@@ -26,6 +27,16 @@ unsigned int mission_Time = 0;
 uint32_t UTC_Time = 0;
 float packet_Count = 0, altitude = 0, temp = 0;
 float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
+/*
+enum SW_State{
+  Ascent,
+  Stabilization,
+  Descent,
+  Landing, 
+  Landed
+};
+*/
+
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
 float gps_Lat = 0, gps_Long = 0, gps_Alt = 0; // Latitude and Longitude in Degrees and Alt in Meters above Sea Level
@@ -42,6 +53,9 @@ int led_Time = 0;
 int solenoid_Time = 0;
 int timePeriod = 500; // Milliseconds
 bool ledOn = false;
+imu::Vector<3> orientation;
+imu::Vector<3> acceleration;
+imu::Vector<3> gyro;
 
 void logData();
 void recieveData();
@@ -50,11 +64,11 @@ void stabilize();
 void setup() {
   // put your setup code here, to run once:
 
-  Serial.begin(9600);
-  OpenLog.begin(9600);
+  Serial.begin(19200);
+  OpenLog.begin(19200);
 
   if (!bmp.begin_I2C()) {
-    Serial.println("Could not find a valid BMP3 sensor, check wiring!");
+    Serial.println("Could not find BMP388 sensor, check wiring!");
     while (1);
   }
   if(!bno.begin())
@@ -119,6 +133,7 @@ void setup() {
 }
 
 void loop() {
+  delay(100);
   mission_Time = millis();
   recieveData();
   digitalWrite(4,LOW);
@@ -133,7 +148,7 @@ void loop() {
   //}
 
   //Testing Purposes
-  /*
+  
   Serial.println("");
   Serial.print("Temperature:");
   Serial.print(temp);
@@ -168,12 +183,12 @@ void loop() {
   Serial.print(F(" Alt: "));
   Serial.print(gps_Alt);
   Serial.println(F(" (m)"));
-  */
-  Serial.println(UTC_Time);
+  
+  //Serial.println(UTC_Time);
 
   if (mission_Time - solenoid_Time >= timePeriod)
   {
-  logData(); // Logs data
+  //logData(); // Logs data
   stabilize(); // Testing stabilization
   solenoid_Time = mission_Time;
   }
@@ -238,11 +253,7 @@ void logData() // Logs data to sd card
 
 void recieveData()
 {
-  imu::Vector<3> orientation;
-  imu::Vector<3> acceleration;
-  imu::Vector<3> gyro;
-
-
+  
   
   UTC_Time++;
   temp = bmp.temperature;
@@ -251,7 +262,7 @@ void recieveData()
   gps_Lat = myGNSS.getLatitude();
   gps_Long = myGNSS.getLongitude();
   gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
-  sensors_event_t event; 
+  
   bno.getEvent(&event);
   orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
   acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
@@ -300,4 +311,15 @@ void stabilize() {
     digitalWrite(3,LOW);
   }
 }
+
+
+/*
+void softwareState(){
+  if (gps_Alt>15000)
+  {
+    SW_State =
+  }
+
+}
+*/
 
