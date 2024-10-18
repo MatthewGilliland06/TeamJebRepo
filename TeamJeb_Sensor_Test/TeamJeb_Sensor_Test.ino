@@ -51,6 +51,7 @@ bool descent = false;
 int Pi = 3.1415926535897932384626433832795;
 int led_Time = 0;
 int solenoid_Time = 0;
+int GPS_Time = 0;
 int timePeriod = 500; // Milliseconds
 bool ledOn = false;
 imu::Vector<3> orientation;
@@ -81,6 +82,9 @@ void setup() {
     Serial.println(F("u-blox GNSS not detected at default I2C address. Retrying..."));
     delay (1000);
   }
+
+  myGNSS.setI2COutput(COM_TYPE_UBX);
+  myGNSS.setNavigationFrequency(5);
     
   bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
   bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
@@ -259,10 +263,13 @@ void recieveData()
   temp = bmp.temperature;
   pressure = bmp.pressure/100;
   altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+  if ( mission_Time - GPS_Time >= 100)
+  {
   gps_Lat = myGNSS.getLatitude();
   gps_Long = myGNSS.getLongitude();
   gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
-  
+  GPS_Time = mission_Time;
+  }
   bno.getEvent(&event);
   orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
   acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
