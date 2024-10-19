@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <string>
 #include <SPI.h>
+#include <UnixTime.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BMP3XX.h"
 #include <Adafruit_BNO055.h>
@@ -11,12 +12,13 @@
 SFE_UBLOX_GNSS myGNSS;
 sensors_event_t event; 
 
+UnixTime stamp(0); // 0 for UTC Time
+
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 Adafruit_BMP3XX bmp; //Pressure Sensor
 Adafruit_BNO055 bno = Adafruit_BNO055(55); // Absolute Orientation Sensor
 SoftwareSerial OpenLog(0, 1); //SD Logger
-
 
 // REQUIRED TELEMETRY
 String team_ID = "Team Jeb";
@@ -24,22 +26,12 @@ unsigned int mission_Time = 0;
 uint32_t UTC_Time = 0;
 float packet_Count = 0, altitude = 0, temp = 0;
 float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
-/*
-enum SW_State{
-  Ascent,
-  Stabilization,
-  Descent,
-  Landing, 
-  Landed
-};
-*/
-
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
 int32_t gps_Lat = 0, gps_Long = 0, gps_Alt = 0; // Latitude and Longitude in Degrees and Alt in Meters above Sea Level
 
 //ADDITIONAL TELEMETRY
-int orient_X = 0, orient_Y = 0, orient_Z = 0;
+float orient_X = 0, orient_Y = 0, orient_Z = 0;
 float maxAlt = 0;
 int lowAlt = 0;
 float pressure = 0;
@@ -47,8 +39,12 @@ bool descent = false;
 int Pi = 3.1415926535897932384626433832795;
 int led_Time = 0;
 int solenoid_Time = 0;
+int log_Time = 0;
 int GPS_Time = 0;
+int Alt_Time = 0;
+int Mins_Descending;
 int timePeriod = 500; // Milliseconds
+int gps_Alt_Old = 0;
 bool ledOn = false;
 int Connections = 0; //Amount of Satellites connected to GPS aka SIV
 imu::Vector<3> orientation;
@@ -60,9 +56,8 @@ void recieveData();
 void stabilize();
 
 void setup() {
-  // put your setup code here, to run once:
 
-  Serial.begin(19200);
+Serial.begin(19200);
   OpenLog.begin(19200);
 
   if (!bmp.begin_I2C()) {
@@ -90,10 +85,7 @@ void setup() {
   
   bno.setExtCrystalUse(true);
 
-  
-
-
-  //Code for CSV File Writing
+  //Headings/Titles for data on SD Card
   OpenLog.print("TEAM_ID");
   OpenLog.print(",");
   OpenLog.print("MISSION_TIME");
@@ -126,7 +118,9 @@ void setup() {
   OpenLog.print(",");
   OpenLog.print("GPS_ALT");
   OpenLog.print(",");
-  OpenLog.println("PRESSURE");  
+  OpenLog.print("PRESSURE");  
+  OpenLog.print(",");
+  OpenLog.println("SIV");
 
 }
 
@@ -136,62 +130,19 @@ void loop() {
   recieveData();
   digitalWrite(4,LOW);
   
-
-  //Getting input from sensors will be above this ^^^
-    
-  //Software State Decider
-  //if (altitude > 5000 && altitude < 16500 && SW_State<1)
-  //{
-    //SW_State = 1;
-  //}
-
-  //Testing Purposes
-  
-  Serial.println("");
-  Serial.print("Temperature:");
-  Serial.print(temp);
-  Serial.print(" Pressure:");
-  Serial.print(pressure);
-  Serial.print(" Altitude:");
-  Serial.print(altitude);
-  Serial.print(" Max Altitude:");
-  Serial.println(maxAlt);
-  Serial.print(orient_X);
-  Serial.print(",");
-  Serial.print(orient_Y);
-  Serial.print(",");
-  Serial.println(orient_Z);
-  Serial.print(acc_X);
-  Serial.print(",");
-  Serial.print(acc_Y);
-  Serial.print(",");
-  Serial.println(acc_Z);
-  Serial.print(gyro_X);
-  Serial.print(",");
-  Serial.print(gyro_Y);
-  Serial.print(",");
-  Serial.println(gyro_Z);
-  Serial.println(mission_Time);
-  Serial.println(Connections);
-  digitalWrite(11,HIGH);
-
-  Serial.print(F("Lat: "));
-  Serial.print(gps_Lat);
-  Serial.print(F(" Long: "));
-  Serial.print(gps_Long);
-  Serial.print(F(" Alt: "));
-  Serial.print(gps_Alt);
-  Serial.println(F(" (m)"));
-  Serial.println(UTC_Time);
-
-  if (mission_Time - solenoid_Time >= timePeriod)
+  if (mission_Time - log_Time >= 500)//
   {
   logData(); // Logs data
-  stabilize(); // Testing stabilization
+  log_Time = mission_Time;
+  }
+
+  if (mission_Time - solenoid_Time >= 500) //
+  {
+  stabilize();
   solenoid_Time = mission_Time;
   }
 
-  if (mission_Time - led_Time >= timePeriod/2)
+  if (mission_Time - led_Time >= 500) // runs every 500 milliseconds
   {
     if (ledOn==false)
     {
@@ -206,9 +157,39 @@ void loop() {
       ledOn = false;
     }
   }
-  
-  
 
+}
+
+void recieveData()
+{
+  
+  temp = bmp.temperature;
+  pressure = bmp.pressure/100;
+  altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+  if ( mission_Time - GPS_Time >= 100)
+  {
+    gps_Lat = myGNSS.getLatitude();
+    gps_Long = myGNSS.getLongitude();
+    gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
+    GPS_Time = mission_Time;
+    UTC_Time = myGNSS.getUnixEpoch();
+    Connections = myGNSS.getSIV();
+  }
+  bno.getEvent(&event);
+  orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+  acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
+  gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+  acc_X = acceleration.x();
+  acc_Y = acceleration.y();
+  acc_Z = acceleration.z();
+  gyro_X = (gyro.x())*(180/Pi);
+  gyro_Y = (gyro.y())*(180/Pi);
+  gyro_Z = (gyro.z())*(180/Pi);
+  orient_X = orientation.x();
+  orient_Y = orientation.y();
+  orient_Z = orientation.z();
+  packet_Count++;
+  return;
 }
 
 void logData() // Logs data to sd card
@@ -245,63 +226,25 @@ void logData() // Logs data to sd card
   OpenLog.print(",");
   OpenLog.print(gps_Alt);  
   OpenLog.print(",");
-  OpenLog.println(pressure);  
+  OpenLog.print(pressure);  
+  OpenLog.print(",");
+  OpenLog.print(Connections);
+
   return;
 }
 
-void recieveData()
-{
-  
-  temp = bmp.temperature;
-  pressure = bmp.pressure/100;
-  altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-  if ( mission_Time - GPS_Time >= 100)
-  {
-  gps_Lat = myGNSS.getLatitude();
-  gps_Long = myGNSS.getLongitude();
-  gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
-  GPS_Time = mission_Time;
-  UTC_Time = myGNSS.getUnixEpoch();
-  Connections = myGNSS.getSIV();
-  }
-  bno.getEvent(&event);
-  orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
-  acceleration = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
-  gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-  acc_X = acceleration.x();
-  acc_Y = acceleration.y();
-  acc_Z = acceleration.z();
-  gyro_X = (gyro.x())*(180/Pi);
-  gyro_Y = (gyro.y())*(180/Pi);
-  gyro_Z = (gyro.z())*(180/Pi);
-  orient_X = orientation.x();
-  orient_Y = orientation.y();
-  orient_Z = orientation.z();
-  packet_Count++;
-}
-
-
- 
-
-//   Stabilization Algorithm in progress   //
 void stabilize() {
-  if (gyro_X > 8 || gyro_X < 8)
+  if (gyro_X > 15 || gyro_X < -15)
   {
-    if (gyro_X > 5)
+    if (gyro_X > 10)
     {
       digitalWrite(2,HIGH);
-      //turn on counter clockwise solenoid
-      //wait for a set amount of time (Don't use delay)
-      //turn off counter clockwise solenoid
       digitalWrite(3,LOW);
       
     }
-    if (gyro_X < 5)
+    if (gyro_X < -10)
     {
       digitalWrite(3,HIGH);
-      //turn on clockwise solenoid
-      //wait for a set amount of time (Don't use delay)
-      //turn off clockwise solenoid
       digitalWrite(2,LOW);
     }
   
@@ -313,14 +256,27 @@ void stabilize() {
   }
 }
 
-
-/*
 void softwareState(){
-  if (gps_Alt>15000)
+  if (mission_Time - Alt_Time >= 60000) //
   {
-    SW_State =
+    gps_Alt_Old = gps_Alt;
+    Alt_Time = mission_Time;
   }
+  if (gps_Alt>5000)
+  {
+    SW_State = 0;
+  }
+  if (gps_Alt>18000)
+  {
+    SW_State = 1;
+  }
+  if (gps_Alt<gps_Alt_Old)
+  {
+    Mins_Descending++;
+    if (Mins_Descending > 5);
+  }
+  
+
+
 
 }
-*/
-
