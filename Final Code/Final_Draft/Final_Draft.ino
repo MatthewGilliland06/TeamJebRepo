@@ -46,7 +46,6 @@ int Mins_Descending;
 int timePeriod = 500; // Milliseconds
 int gps_Alt_Old = 0;
 bool ledOn = false;
-int Connections = 0; //Amount of Satellites connected to GPS aka SIV
 imu::Vector<3> orientation;
 imu::Vector<3> acceleration;
 imu::Vector<3> gyro;
@@ -57,8 +56,8 @@ void stabilize();
 
 void setup() {
 
-Serial.begin(19200);
-  OpenLog.begin(19200);
+  Serial.begin(9600);
+  OpenLog.begin(9600);
 
   if (!bmp.begin_I2C()) {
     Serial.println("Could not find BMP388 sensor, check wiring!");
@@ -116,11 +115,7 @@ Serial.begin(19200);
   OpenLog.print(",");
   OpenLog.print("GPS_LONG");
   OpenLog.print(",");
-  OpenLog.print("GPS_ALT");
-  OpenLog.print(",");
-  OpenLog.print("PRESSURE");  
-  OpenLog.print(",");
-  OpenLog.println("SIV");
+  OpenLog.println("GPS_ALT");
 
 }
 
@@ -157,6 +152,41 @@ void loop() {
       ledOn = false;
     }
   }
+  Serial.println("");
+  Serial.print("Temperature:");
+  Serial.print(temp);
+  Serial.print(" Pressure:");
+  Serial.print(pressure);
+  Serial.print(" Altitude:");
+  Serial.print(altitude);
+  Serial.print(" Max Altitude:");
+  Serial.println(maxAlt);
+  Serial.print(orient_X);
+  Serial.print(",");
+  Serial.print(orient_Y);
+  Serial.print(",");
+  Serial.println(orient_Z);
+  Serial.print(acc_X);
+  Serial.print(",");
+  Serial.print(acc_Y);
+  Serial.print(",");
+  Serial.println(acc_Z);
+  Serial.print(gyro_X);
+  Serial.print(",");
+  Serial.print(gyro_Y);
+  Serial.print(",");
+  Serial.println(gyro_Z);
+  Serial.println(mission_Time);
+  digitalWrite(11,HIGH);
+
+  Serial.print(F("Lat: "));
+  Serial.print(gps_Lat);
+  Serial.print(F(" Long: "));
+  Serial.print(gps_Long);
+  Serial.print(F(" Alt: "));
+  Serial.print(gps_Alt);
+  Serial.println(F(" (m)"));
+  Serial.println(UTC_Time);
 
 }
 
@@ -173,7 +203,6 @@ void recieveData()
     gps_Alt = myGNSS.getAltitudeMSL() / 1000; // Altitude above Mean Sea Level
     GPS_Time = mission_Time;
     UTC_Time = myGNSS.getUnixEpoch();
-    Connections = myGNSS.getSIV();
   }
   bno.getEvent(&event);
   orientation = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
@@ -224,12 +253,7 @@ void logData() // Logs data to sd card
   OpenLog.print(",");
   OpenLog.print(gps_Long);
   OpenLog.print(",");
-  OpenLog.print(gps_Alt);  
-  OpenLog.print(",");
-  OpenLog.print(pressure);  
-  OpenLog.print(",");
-  OpenLog.print(Connections);
-
+  OpenLog.println(gps_Alt);  
   return;
 }
 
@@ -255,7 +279,7 @@ void stabilize() {
     digitalWrite(3,LOW);
   }
 }
-
+/*
 void softwareState(){
   if (mission_Time - Alt_Time >= 60000) //
   {
@@ -280,3 +304,4 @@ void softwareState(){
 
 
 }
+*/
