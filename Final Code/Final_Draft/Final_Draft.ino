@@ -25,7 +25,7 @@ String team_ID = "Team Jeb";
 unsigned int mission_Time = 0;
 uint32_t UTC_Time = 0;
 float packet_Count = 0, altitude = 0, temp = 0;
-float SW_State = 0; //SW_State  1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
+float SW_State = 0; //SW_State  0 = Liftoff 1 = Ascent, 2 = Stabilization, 3 = Descent, 4 = Landing, 5 = Landed
 float acc_X = 0, acc_Y = 0, acc_Z = 0; // In meters per second squared
 float gyro_X = 0, gyro_Y = 0, gyro_Z = 0; // Degrees per second
 int32_t gps_Lat = 0, gps_Long = 0, gps_Alt = 0; // Latitude and Longitude in Degrees and Alt in Meters above Sea Level
@@ -46,6 +46,7 @@ int Mins_Descending;
 int timePeriod = 500; // Milliseconds
 int gps_Alt_Old = 0;
 bool ledOn = false;
+
 imu::Vector<3> orientation;
 imu::Vector<3> acceleration;
 imu::Vector<3> gyro;
@@ -84,7 +85,7 @@ void setup() {
   
   bno.setExtCrystalUse(true);
 
-  //Headings/Titles for data on SD Card
+  // Headings/Titles for data on SD Card
   OpenLog.print("TEAM_ID");
   OpenLog.print(",");
   OpenLog.print("MISSION_TIME");
@@ -115,7 +116,9 @@ void setup() {
   OpenLog.print(",");
   OpenLog.print("GPS_LONG");
   OpenLog.print(",");
-  OpenLog.println("GPS_ALT");
+  OpenLog.print("GPS_ALT");
+  OpenLog.print(",");
+  OpenLog.println("PRESSURE");
 
 }
 
@@ -253,7 +256,9 @@ void logData() // Logs data to sd card
   OpenLog.print(",");
   OpenLog.print(gps_Long);
   OpenLog.print(",");
-  OpenLog.println(gps_Alt);  
+  OpenLog.print(gps_Alt);  
+  OpenLog.print(",");
+  OpenLog.println(pressure);
   return;
 }
 
@@ -279,29 +284,39 @@ void stabilize() {
     digitalWrite(3,LOW);
   }
 }
+
 /*
 void softwareState(){
+  
   if (mission_Time - Alt_Time >= 60000) //
   {
     gps_Alt_Old = gps_Alt;
     Alt_Time = mission_Time;
   }
-  if (gps_Alt>5000)
-  {
-    SW_State = 0;
-  }
-  if (gps_Alt>18000)
+  if (gps_Alt>5000 && SW_State = 0)
   {
     SW_State = 1;
   }
-  if (gps_Alt<gps_Alt_Old)
+  if (gps_Alt>18000 && SW_State = 1)
+  {
+    SW_State = 2;
+  }
+  if (gps_Alt<gps_Alt_Old && SW_State = 2)
   {
     Mins_Descending++;
-    if (Mins_Descending > 5);
+    if (Mins_Descending > 5)
+    {
+      SW_State = 3;
+    }
   }
-  
-
-
+  if (gps_Alt<5000 && SW_State = 3)
+  {
+    SW_State = 4;
+  }
+  if (SW_State = 4)
+  {
+    if (gps_Alt_Old )
+  }
 
 }
 */
